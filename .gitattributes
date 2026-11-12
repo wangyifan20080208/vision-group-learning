@@ -1,0 +1,8 @@
+﻿# 统一换行符：脚本和源码必须是 LF，否则克隆到 Linux 后 bash 报错
+* text=auto eol=lf
+*.sh   text eol=lf
+*.py   text eol=lf
+*.yaml text eol=lf
+*.launch.py text eol=lf
+*.pgm  binary
+*.png  binary
