@@ -18,6 +18,10 @@ PITCH=$(printf "%.1f" "${1:-20}")
 SPIN=$(printf "%.1f" "${2:-180}")
 OFFX=$(printf "%.3f" "${3:-0.15}")
 LH=$(printf "%.3f" "${4:-0.275}")
+# 第5个参数：虚拟基座系
+#   true  = 把小陀螺从导航坐标系里剥掉（导航稳，但 RViz 里看不见车在转）
+#   false = 物理朝向直出（看得见陀螺转，但导航容易偶发失败）
+VT=${5:-true}
 MAP="$HOME/rm_ws/nav_sim_ws/maps/rmul2027/map.yaml"
 PARAMS="$HOME/rm_ws/nav_sim_ws/config/nav2_params_2027.yaml"
 
@@ -29,13 +33,18 @@ if pgrep -f "ros2 launch rm_nav_sim" > /dev/null || \
   bash "$HERE/kill_all.sh"
 fi
 
-echo ">>> 场景：倾角 ${PITCH}° | 自转 ${SPIN}°/s | 偏心 ${OFFX}m | 高 ${LH}m"
+echo ">>> 场景：倾角 ${PITCH}° | 自转 ${SPIN}°/s | 偏心 ${OFFX}m | 高 ${LH}m | 虚拟基座 ${VT}"
+if [ "$VT" = "true" ]; then
+  echo "    （导航稳，但 RViz 里看不到车在转 —— 这是设计如此）"
+else
+  echo "    （能看见陀螺转，但导航可能偶发失败）"
+fi
 
 nohup ros2 launch rm_nav_sim nav_tilted.launch.py \
   map:="$MAP" params:="$PARAMS" \
   start_x:=-0.22 start_y:=-2.22 start_yaw:=0.0 \
   pitch_deg:="$PITCH" spin_dps:="$SPIN" \
-  offset_x:="$OFFX" lidar_h:="$LH" \
+  offset_x:="$OFFX" lidar_h:="$LH" vel_transform:="$VT" \
   enable_deskew:=true enable_ego:=true ego_filter:=true ego_range:=0.45 \
   rviz:=false > /tmp/tilted_nav.log 2>&1 &
 echo "Nav2 启动中（日志 /tmp/tilted_nav.log）..."
