@@ -78,6 +78,8 @@ class SentryFSM(Node):
         self.ref = {}
         self.pose = None
         self.cur_goal = None
+        self.want_goal = None          # 当前状态想要去的目标（用于看门狗重发）
+        self.since_goal_try = 0.0
         self.goal_handle = None
         self.shift_i = 0
         self.since_shift = 0.0
@@ -108,6 +110,8 @@ class SentryFSM(Node):
 
     # ---------- Nav2 目标 ----------
     def send_goal(self, x, y, yaw=0.0):
+        # 注意：Nav2 可能还没起来，wait_for_server 失败时必须返回 False，
+        # 由 tick() 里的看门狗重试 —— 否则状态机会永远卡在"想发但没发出去"。
         if not self.nav.wait_for_server(timeout_sec=0.5):
             return False
         g = NavigateToPose.Goal()
@@ -154,6 +158,7 @@ class SentryFSM(Node):
             self.state = st
             self.state_t = 0.0
             self.since_shift = 0.0
+            self.want_goal = goal
             if goal is not None:
                 self.send_goal(*goal)
 
@@ -165,6 +170,15 @@ class SentryFSM(Node):
         dt = min(max(dt, 1e-3), 0.5)
         self.state_t += dt
         self.since_shift += dt
+        self.since_goal_try += dt
+
+        # 目标看门狗：当前状态应该有目标但没有 → 每秒重试一次
+        if (self.want_goal is not None and self.cur_goal is None
+                and self.since_goal_try > 1.0):
+            if self.send_goal(*self.want_goal):
+                self.since_goal_try = 0.0
+                self.get_logger().info(
+                    f"[{self.state}] 目标重发成功 → {self.want_goal}")
 
         if not self.enable or not self.ref:
             self.publish()
