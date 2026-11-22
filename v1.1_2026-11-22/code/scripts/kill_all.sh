@@ -4,9 +4,12 @@
 # TF 冲突 → lifecycle_manager 配置失败 → Nav2 全部卡在 unconfigured。
 pkill -f "ros2 launch rm_nav_sim"            2>/dev/null
 sleep 0.5
-pkill -9 -f "lib/rm_nav_sim/sim_node"        2>/dev/null
-pkill -9 -f "lib/rm_nav_sim/deskew_node"     2>/dev/null
-pkill -9 -f "nav2_lifecycle_manager"         2>/dev/null
+pkill -9 -f "lib/rm_nav_sim/"                    2>/dev/null
+pkill -9 -f "rm_nav_sim.sim_node"                2>/dev/null
+pkill -9 -f "rm_nav_sim.deskew_node"             2>/dev/null
+pkill -9 -f "rm_nav_sim.referee_sim_node"        2>/dev/null
+pkill -9 -f "rm_nav_sim.sentry_fsm_node"         2>/dev/null
+pkill -9 -f "nav2_lifecycle_manager"             2>/dev/null
 pkill -9 -f "nav2_controller"                2>/dev/null
 pkill -9 -f "nav2_planner"                   2>/dev/null
 pkill -9 -f "nav2_bt_navigator"              2>/dev/null

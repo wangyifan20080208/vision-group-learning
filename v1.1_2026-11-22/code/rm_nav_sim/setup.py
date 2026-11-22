@@ -16,6 +16,7 @@ setup(
             'launch/nav_truth.launch.py',
             'launch/nav_gimbal.launch.py',
             'launch/nav_tilted.launch.py',
+            'launch/sentry_sim.launch.py',
         ]),
     ],
     install_requires=['setuptools'],
@@ -29,6 +30,8 @@ setup(
             'sim_node = rm_nav_sim.sim_node:main',
             'deskew_node = rm_nav_sim.deskew_node:main',
             'gen_map = rm_nav_sim.gen_map:main',
+            'referee_sim_node = rm_nav_sim.referee_sim_node:main',
+            'sentry_fsm_node = rm_nav_sim.sentry_fsm_node:main',
         ],
     },
 )
