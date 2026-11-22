@@ -4,7 +4,15 @@
 #   bash run_rviz_tilted.sh 30 180       自定义 倾角 / 转速
 source /opt/ros/humble/setup.bash
 source "$HOME/rm_ws/nav_sim_ws/install/setup.bash"
-export DISPLAY=:0
+export DISPLAY=${DISPLAY:-:0}
+
+# 脚本所在目录（仓库里是 code/scripts/，工具在 code/rm_nav_sim/tools/）
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$HERE/../rm_nav_sim/tools" ]; then
+  TOOLS="$HERE/../rm_nav_sim/tools"
+else
+  TOOLS="/mnt/d/dshworkspace/rm_nav_sim/tools"
+fi
 
 PITCH=$(printf "%.1f" "${1:-20}")
 SPIN=$(printf "%.1f" "${2:-180}")
@@ -18,7 +26,7 @@ PARAMS="$HOME/rm_ws/nav_sim_ws/config/nav2_params_2027.yaml"
 if pgrep -f "ros2 launch rm_nav_sim" > /dev/null || \
    pgrep -f "static_transform_publisher" > /dev/null; then
   echo ">>> 发现残留进程，彻底清理"
-  bash /mnt/d/dshworkspace/scripts/kill_all.sh
+  bash "$HERE/kill_all.sh"
 fi
 
 echo ">>> 场景：倾角 ${PITCH}° | 自转 ${SPIN}°/s | 偏心 ${OFFX}m | 高 ${LH}m"

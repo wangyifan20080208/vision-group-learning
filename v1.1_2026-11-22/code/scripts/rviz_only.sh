@@ -2,11 +2,12 @@
 # 只打开 RViz，连到已经在跑的仿真（不重启 Nav2）
 source /opt/ros/humble/setup.bash
 source "$HOME/rm_ws/nav_sim_ws/install/setup.bash"
-export DISPLAY=:0
+export DISPLAY=${DISPLAY:-:0}
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if ! pgrep -f "ros2 launch rm_nav_sim" > /dev/null; then
   echo ">>> 没有在跑的仿真，请先执行："
-  echo "    bash /mnt/d/dshworkspace/scripts/run_rviz_tilted.sh 20 180"
+  echo "    bash $HERE/run_rviz_tilted.sh 20 180"
   exit 1
 fi
 
