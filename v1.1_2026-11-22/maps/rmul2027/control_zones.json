@@ -1,0 +1,129 @@
+{
+  "frame": "map",
+  "resolution": 0.05,
+  "origin": [
+    -6.8,
+    -4.8
+  ],
+  "red_side": "-x",
+  "can_climb_0p2": false,
+  "zones": [
+    {
+      "key": "red_highland",
+      "label": "红方高地控制区",
+      "box": {
+        "x": [
+          -3.5,
+          -1.5
+        ],
+        "y": [
+          -1.0,
+          3.06
+        ]
+      },
+      "center": [
+        -2.5,
+        1.03
+      ],
+      "z": 0.2,
+      "on_platform": true,
+      "reach_ratio": 0.0005877167205406994,
+      "approach": [
+        -0.95,
+        0.26874999999999993
+      ]
+    },
+    {
+      "key": "center",
+      "label": "中央控制区",
+      "box": {
+        "x": [
+          -1.5,
+          1.5
+        ],
+        "y": [
+          -1.5,
+          1.5
+        ]
+      },
+      "center": [
+        0.0,
+        0.0
+      ],
+      "z": 0.0,
+      "on_platform": false,
+      "reach_ratio": 0.9312533051295611,
+      "approach": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "key": "blue_highland",
+      "label": "蓝方高地控制区",
+      "box": {
+        "x": [
+          1.5,
+          3.5
+        ],
+        "y": [
+          -3.06,
+          1.0
+        ]
+      },
+      "center": [
+        2.5,
+        -1.03
+      ],
+      "z": 0.2,
+      "on_platform": true,
+      "reach_ratio": 0.0,
+      "approach": [
+        0.95,
+        -0.26874999999999993
+      ]
+    }
+  ],
+  "waypoints": [
+    {
+      "name": "red_highland",
+      "label": "红方高地控制区",
+      "x": -0.95,
+      "y": 0.269,
+      "z": 0.2,
+      "zone_center": [
+        -2.5,
+        1.03
+      ],
+      "on_platform": true,
+      "mode": "approach"
+    },
+    {
+      "name": "center",
+      "label": "中央控制区",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "zone_center": [
+        0.0,
+        0.0
+      ],
+      "on_platform": false,
+      "mode": "on_zone"
+    },
+    {
+      "name": "blue_highland",
+      "label": "蓝方高地控制区",
+      "x": 0.95,
+      "y": -0.269,
+      "z": 0.2,
+      "zone_center": [
+        2.5,
+        -1.03
+      ],
+      "on_platform": true,
+      "mode": "approach"
+    }
+  ],
+  "note": "红方侧需与官方场地图核对；高地控制区在 0.2m 台阶上，无坡道"
+}
