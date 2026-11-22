@@ -15,6 +15,7 @@ setup(
             'launch/nav.launch.py',
             'launch/nav_truth.launch.py',
             'launch/nav_gimbal.launch.py',
+            'launch/nav_tilted.launch.py',
         ]),
     ],
     install_requires=['setuptools'],

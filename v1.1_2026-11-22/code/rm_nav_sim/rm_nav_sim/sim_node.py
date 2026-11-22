@@ -71,6 +71,16 @@ class GridSim(Node):
                                  0.13, -0.07, 0.13, 0.07]),
             ("publish_imu", True),
             ("imu_hz", 200.0),
+            # ---- 安装位姿（底盘系）：偏心 + 前倾 ----
+            ("lidar_offset_x", 0.0),      # 相对旋转中心前移
+            ("lidar_offset_y", 0.0),      # 相对旋转中心左移
+            ("lidar_pitch_deg", 0.0),     # 前倾角，正=朝下俯
+            ("lidar_fov_min_deg", -7.0),  # Mid-360 垂直视场下沿
+            ("lidar_fov_max_deg", 52.0),  # 垂直视场上沿
+            ("chassis_spin_dps", 0.0),    # 底盘自转角速度，360=小陀螺
+            # 虚拟基座系：把小陀螺的旋转从 TF/速度指令里剥掉，
+            # 让 Nav2 看到一个"不转的基座"（等价于北极熊的 fake_vel_transform）
+            ("spin_vel_transform", True),
         )
         for name, val in defaults:
             self.declare_parameter(name, val)
@@ -115,6 +125,30 @@ class GridSim(Node):
         self.ego_filter = bool(p("ego_filter").value)
         self.ego_range = float(p("ego_range").value)
         self.publish_imu = bool(p("publish_imu").value)
+
+        # 安装位姿：偏心 / 前倾 / 垂直视场
+        self.lofs_x = float(p("lidar_offset_x").value)
+        self.lofs_y = float(p("lidar_offset_y").value)
+        self.pitch = math.radians(float(p("lidar_pitch_deg").value))
+        self.fov_min = float(p("lidar_fov_min_deg").value)
+        self.fov_max = float(p("lidar_fov_max_deg").value)
+        # 前倾后，水平面只在一部分方位角内落在视场里。
+        # 条件：atan(cos(az)·tan α) ≥ fov_min  →  cos(az) ≥ tan(fov_min)/tan(α)
+        if abs(self.pitch) > 1e-6 and abs(math.sin(self.pitch)) > 1e-6:
+            _lim = math.tan(math.radians(self.fov_min)) / math.tan(self.pitch)
+            self._cover_lim = max(-1.0, min(1.0, _lim))
+        else:
+            self._cover_lim = -1.0
+        self.blind_deg = 0.0
+        if self._cover_lim > -1.0:
+            _half = math.degrees(math.acos(self._cover_lim))
+            self.blind_deg = 360.0 - 2.0 * _half
+            self._cover_half = _half
+        else:
+            self._cover_half = 180.0
+        self.spin_rate = math.radians(float(p("chassis_spin_dps").value))
+        self.spin_vel_transform = bool(p("spin_vel_transform").value)
+        self.spin_accum = 0.0     # 累计自转角，用于构造虚拟基座系
 
         cp = p("chassis_poly_xy").value
         self.chassis_poly = (np.array(cp, dtype=float).reshape(-1, 2)
@@ -196,8 +230,13 @@ class GridSim(Node):
         else:
             t.header.frame_id = "base_footprint"
         t.child_frame_id = "laser"
+        t.transform.translation.x = self.lofs_x
+        t.transform.translation.y = self.lofs_y
         t.transform.translation.z = self.laser_h
-        # 倒置：绕 x 轴 180°
+        # 只应用 roll（倒置180°时 XY 平面仍是水平的），**不应用 pitch**。
+        # 原因：pitch 会把 laser 系的 XY 平面掰出水平面，而 2D LaserScan 只能
+        # 表达水平面上的测量。前倾的几何效果已经由 _cover_lim 盲区掩码建模，
+        # 若再在 TF 里转一次，等于把倾斜算了两次，扫描会被拉歪。
         t.transform.rotation.x = math.sin(self.roll * 0.5)
         t.transform.rotation.w = math.cos(self.roll * 0.5)
         self.static_broad.sendTransform([t])
@@ -248,13 +287,16 @@ class GridSim(Node):
             v, vy, w = 0.0, 0.0, 0.0
 
         gy_rate = self._gimbal_rate_now(now)
-        vx_w = v * math.cos(self.th) - vy * math.sin(self.th)
-        vy_w = v * math.sin(self.th) + vy * math.cos(self.th)
+        # 虚拟基座朝向 = 物理朝向 - 累计自角。
+        # cmd_vel 表达在虚拟基座里，若不剥掉自转，同一个(0.6,0)会让车画圈。
+        th_cmd = self.th - (self.spin_accum if self.spin_vel_transform else 0.0)
+        vx_w = v * math.cos(th_cmd) - vy * math.sin(th_cmd)
+        vy_w = v * math.sin(th_cmd) + vy * math.cos(th_cmd)
 
         with self.lock:
             nx = self.x + vx_w * dt
             ny = self.y + vy_w * dt
-            nth = self.th + w * dt
+            nth = self.th + (w + self.spin_rate) * dt
             if not self._blocked(nx, ny):
                 self.x, self.y, self.th = nx, ny, nth
             else:
@@ -268,18 +310,20 @@ class GridSim(Node):
                 self.gimbal_yaw -= 2 * math.pi
             elif self.gimbal_yaw < -math.pi:
                 self.gimbal_yaw += 2 * math.pi
+            self.spin_accum += self.spin_rate * dt
             x, y, th, gy = self.x, self.y, self.th, self.gimbal_yaw
 
         self.hist.append((now.nanoseconds * 1e-9, x, y, th, gy))
         self.last_yaw_rate = w
 
         stamp = now.to_msg()
-        self._pub_odom(stamp, v, vy, w, x, y, th)
+        th_v = th - self.spin_accum if self.spin_vel_transform else th
+        self._pub_odom(stamp, v, vy, w, x, y, th_v)
         if self.mount == "gimbal":
             self._pub_gimbal_tf(stamp, gy)
         self.ticks += 1
         if self.ticks % 2 == 0:
-            self._pub_tf(stamp, x, y, th)
+            self._pub_tf(stamp, x, y, th_v)
 
     def on_imu_tick(self):
         """雷达内置 IMU 与云台角以 200 Hz 发布（与真机一致）。"""
@@ -395,7 +439,19 @@ class GridSim(Node):
         tb = np.interp(t_beam, ht, h[:, 3])
         gb = np.interp(t_beam, ht, h[:, 4])
 
+        # 雷达装在底盘上偏离旋转中心时，射线原点要跟着转（这是自转时的主要误差源）
+        if self.lofs_x or self.lofs_y:
+            ct, st = np.cos(tb), np.sin(tb)
+            ox_w = self.lofs_x * ct - self.lofs_y * st
+            oy_w = self.lofs_x * st + self.lofs_y * ct
+            xb = xb + ox_w
+            yb = yb + oy_w
+
         alpha = self.alphas                       # laser 系方位角
+        # 虚拟基座系：把自转从“车头朝向”里剥掉，扫描按不转的基座表达。
+        # 否则 TF 用虚拟朝向、扫描却按物理朝向算，点云会整体偏移 spin_accum。
+        if self.spin_vel_transform and abs(self.spin_rate) > 1e-9:
+            tb = tb - (self.spin_accum - self.spin_rate * (t_end - t_beam))
         # 倒置（绕 x 转 180°）使 y 反向 → 方位角取负
         gim_az = -alpha
         beta = gb + gim_az                        # base 系方位角
@@ -419,6 +475,11 @@ class GridSim(Node):
         first = hit.argmax(axis=0)
         rng = np.where(any_hit, self.ds[first], np.inf).astype(np.float64)
 
+        # 前倾导致的水平盲区：视场下沿只有 -7°，倾角一大，后背方位就看不到水平面
+        if self._cover_lim > -1.0:
+            covered = np.cos(alpha) >= self._cover_lim
+            rng = np.where(covered, rng, np.inf)
+
         # 车体自遮挡
         #
         # 关键：三维点云转二维扫描时是"每个方位取最近点"（pointcloud_to_laserscan
@@ -432,7 +493,11 @@ class GridSim(Node):
         #   ego_filter=False → 模拟忘记处理：整圈被自车轮廓占满
         if self.enable_ego:
             d_base = np.stack([np.cos(beta), np.sin(beta)], axis=1)
-            r_chassis = self._ray_poly(d_base, self.chassis_poly)
+            # 雷达偏心时，车体在雷达系里要反向平移
+            poly_c = self.chassis_poly
+            if poly_c is not None and (self.lofs_x or self.lofs_y):
+                poly_c = poly_c - np.array([self.lofs_x, self.lofs_y])
+            r_chassis = self._ray_poly(d_base, poly_c)
             d_laser = np.stack([np.cos(alpha), np.sin(alpha)], axis=1)
             r_payload = self._ray_poly(d_laser, self.payload_poly)
             r_ego = np.minimum(r_chassis, r_payload)
