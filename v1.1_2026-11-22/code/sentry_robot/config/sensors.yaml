@@ -1,0 +1,62 @@
+# 哨兵真机传感器参数
+#
+# 已验证（2026-11-24，shaobing-MIX-NUC-II）：
+#   Livox Mid-360s   : 雷达 192.168.1.153，主机 192.168.1.50
+#                      点云 9.998 Hz (CustomMsg，带逐点 offset_time)
+#                      IMU  199.9 Hz (ICM40609)
+#   海康 MV-CS016-10UC: SN=DB3518006, 1440x1080, 全局快门, 249.1 fps 上限
+#
+# ⚠️ 下面带 "待实测" 的几何量必须等机械装配后量准再填，现在只是占位。
+
+livox_scan:
+  ros__parameters:
+    # ---- 安装方式：雷达挂云台、与偏航轴同轴、倒置 ----
+    inverted: true            # 倒置；倒置本身在 TF 里定义（gimbal_yaw→laser 的 roll=180°）
+    imu_z_sign: -1.0          # 倒置使 IMU 的 z 轴翻转，必须取负。符号搞反误差会翻倍
+    deskew: true              # 逐点去畸变。云台旋转时不补偿会整帧错位
+
+    # ---- 坐标系 ----
+    target_frame: base_footprint
+    scan_topic: /scan
+    cloud_topic: /cloud_deskewed
+    publish_cloud: true
+
+    # ---- 2D 切片（相对 target_frame，即 base_footprint 原点=地面）----
+    # 雷达光心离地约 0.50 m。倒置后 52° 全朝下，要够高才不扫到自己：
+    #   光心高于车体最高点 h > 1.28 × 车体半径 R
+    #   R=0.30 m → h > 0.38 m
+    range_min: 0.35           # 近处盲区：雷达盲区 0.1 m + 自车遮挡
+    range_max: 40.0
+    height_min: -0.30         # 地面附近
+    height_max: 0.60          # 到装甲板高度
+    angle_bins: 720
+
+hik_camera:
+  ros__parameters:
+    # ---- 自瞄必须手动曝光 ----
+    # 装甲板是主动发光：曝光压低、增益拉满，把灯条从背景里突出来
+    exposure_us: 2000.0       # 支持超小曝光模式 1~14 µs，先试 2000
+    gain_db: 17.0             # 上限 17 dB
+    frame_rate: 100.0         # 实测可稳定 100 fps；相机上限 249.1
+
+    width: 1440
+    height: 1080
+    frame_id: camera_optical
+    image_topic: /camera/image_raw
+
+# ────────────────────────────────────────────────────────────
+# 踩过的坑：rclpy 给 uint8[] 字段赋值，写法差 2000 倍
+#
+#   1440x1080（4.67 MB）单次赋值耗时实测：
+#     m.data = arr.tobytes()              213 ms   ( 22 MB/s)   ← 逐字节转换
+#     m.data = bytearray(...)             238 ms   ( 20 MB/s)   ← 同样慢
+#     m.data = array.array("B", raw)      0.1 ms   (32 GB/s)   ← 内存直拷
+#
+#   用 bytes 的后果：相机只能到 4.4 fps，且与分辨率无关（恒定 20 MB/s），
+#   极容易误判成「DDS 带宽不够」或「USB 带宽不够」。
+#   实测换了 CycloneDDS 也没用（4.5 fps），因为瓶颈根本不在 DDS。
+#   两个节点都已改用 array.array("B", ...)，相机随即跑到 99~100 fps。
+#
+# 另一个坑：浮点参数必须写成 100.0，写 100 会被当成整数，
+#   节点启动时直接抛 InvalidParameterTypeException 崩掉。
+# ────────────────────────────────────────────────────────────

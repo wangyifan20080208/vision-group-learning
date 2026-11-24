@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>sentry_robot</name>
+  <version>0.1.0</version>
+  <description>哨兵真机 bringup：雷达挂云台（倒置同轴）+ 海康相机</description>
+  <maintainer email="dev@example.com">RM Sentry Team</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>livox_ros_driver2</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
