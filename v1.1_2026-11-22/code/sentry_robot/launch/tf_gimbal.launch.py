@@ -15,6 +15,7 @@ import math
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -32,13 +33,15 @@ def generate_launch_description():
     inv = LaunchConfiguration("inverted")
     yaw_off = LaunchConfiguration("laser_yaw_offset_deg")
 
-    use_static_gimbal = LaunchConfiguration("use_static_gimbal")
+    use_static_gimbal = LaunchConfiguration("static_gimbal")
 
     # base_footprint → gimbal_yaw
-    # 桌面单测时用零位，装车后改成实测值
+    # 桌面单测时用零位；装车后由 gimbal_bridge_node 动态发布，
+    # 那时把 static_gimbal:=false 关掉这一段，避免两个节点抢同一个 TF。
     base_to_gimbal = Node(
         package="tf2_ros", executable="static_transform_publisher",
         name="base_to_gimbal",
+        condition=IfCondition(use_static_gimbal),
         arguments=["--x", gx, "--y", gy, "--z", gz,
                    "--roll", "0", "--pitch", "0", "--yaw", "0",
                    "--frame-id", "base_footprint",
@@ -86,6 +89,10 @@ def generate_launch_description():
         DeclareLaunchArgument("inverted", default_value="true"),
         DeclareLaunchArgument("laser_yaw_offset_deg", default_value="0.0",
                               description="Mid-360s 标称坐标系修正"),
+        DeclareLaunchArgument(
+            "static_gimbal", default_value="true",
+            description="true=发静态 gimbal TF（桌面测试）；"
+                        "false=由 gimbal_bridge_node 动态发布（真车）"),
         base_to_gimbal,
         gimbal_to_laser,
         laser_to_livox,

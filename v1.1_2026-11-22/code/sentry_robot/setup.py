@@ -29,6 +29,7 @@ setup(
         "console_scripts": [
             "livox_scan_node = sentry_robot.livox_scan_node:main",
             "hik_camera_node = sentry_robot.hik_camera_node:main",
+            "gimbal_bridge_node = sentry_robot.gimbal_bridge_node:main",
         ],
     },
 )
